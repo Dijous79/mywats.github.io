@@ -79,6 +79,14 @@
     border:1px solid #d1d7db;border-radius:8px;padding:6px 10px;font-size:13px;background:#fff;
   }
   .topbar .linkbtn{background:none;border:none;color:var(--wa-green);cursor:pointer;font-size:13px;font-weight:600}
+  .zoomctl{display:flex;align-items:center;gap:6px}
+  .zbtn{
+    width:28px;height:28px;border-radius:6px;border:1px solid #d1d7db;background:#fff;
+    cursor:pointer;font-size:17px;line-height:1;color:var(--wa-green);font-weight:700;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .zbtn:hover{background:#eafff4}
+  #zoomLbl{font-size:12px;color:var(--muted);min-width:38px;text-align:center;cursor:pointer;user-select:none}
 
   /* ---------- Chat area ---------- */
   #chat{
@@ -101,7 +109,7 @@
   .row.in{justify-content:flex-start}
   .bubble{
     position:relative;max-width:65%;border-radius:8px;padding:6px 9px 8px;
-    box-shadow:0 1px .5px rgba(0,0,0,.13);font-size:14.2px;line-height:1.35;
+    box-shadow:0 1px .5px rgba(0,0,0,.13);font-size:calc(14.2px * var(--z,1));line-height:1.35;
     word-wrap:break-word;overflow-wrap:anywhere;white-space:pre-wrap;
   }
   .row.in  .bubble{background:var(--bubble-in);border-top-left-radius:0}
@@ -117,10 +125,33 @@
 
   /* media */
   .bubble img.photo,.bubble video{
-    max-width:330px;width:100%;border-radius:6px;display:block;margin-bottom:4px;cursor:pointer;background:#0001;
+    max-width:calc(330px * var(--z,1));width:100%;border-radius:6px;display:block;margin-bottom:4px;cursor:pointer;background:#0001;
   }
-  .bubble img.sticker{width:130px;height:auto;display:block}
+  .bubble img.sticker{width:calc(130px * var(--z,1));height:auto;display:block}
   .bubble audio{width:280px;max-width:60vw;margin:2px 0;display:block}
+
+  /* custom audio player */
+  .aud{display:flex;align-items:center;gap:9px;width:270px;max-width:62vw;margin:3px 0;}
+  .aud-play{
+    flex-shrink:0;width:38px;height:38px;border-radius:50%;border:none;cursor:pointer;
+    background:var(--wa-green);color:#fff;font-size:16px;line-height:1;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .aud-play:hover{filter:brightness(1.08)}
+  .aud-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+  .aud-wave{
+    display:flex;align-items:center;gap:2px;height:30px;cursor:pointer;width:100%;
+  }
+  .aud-bar{
+    flex:1;min-width:2px;border-radius:2px;background:#b9c6bf;height:25%;
+  }
+  .aud-bar.played{background:var(--wa-green)}
+  .aud-row{display:flex;justify-content:space-between;align-items:center}
+  .aud-time{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .aud-rate{
+    font-size:11px;color:var(--wa-green);background:#0000;border:none;cursor:pointer;
+    font-weight:700;padding:0 2px;
+  }
   .doc{
     display:flex;align-items:center;gap:10px;background:#0000000a;border-radius:8px;
     padding:10px 12px;margin-bottom:4px;text-decoration:none;color:inherit;min-width:200px;
@@ -195,6 +226,11 @@
     </div>
     <div class="tools">
       <input type="search" id="search" placeholder="🔍 Search messages">
+      <div class="zoomctl">
+        <button class="zbtn" id="zoomOut" title="Zoom out (more messages)">−</button>
+        <span id="zoomLbl" title="Reset zoom">100%</span>
+        <button class="zbtn" id="zoomIn" title="Zoom in (bigger messages)">+</button>
+      </div>
       <label class="hint">You:&nbsp;</label>
       <select id="meSelect" title="Who is 'you' (right side)"></select>
       <button class="linkbtn" id="resetBtn">Open another</button>
@@ -417,7 +453,17 @@ function renderMessages(filter){
         }else if(kind==="video"){
           inner+=`<video src="${url}" controls preload="metadata" data-lb="video" data-src="${url}"></video>`;
         }else if(kind==="audio"){
-          inner+=`<audio controls preload="none" src="${url}"></audio>`;
+          inner+=`<div class="aud">
+                    <button class="aud-play" aria-label="play">▶</button>
+                    <div class="aud-mid">
+                      <div class="aud-wave">${'<span class="aud-bar"></span>'.repeat(NBARS)}</div>
+                      <div class="aud-row">
+                        <span class="aud-time">0:00</span>
+                        <button class="aud-rate" title="Playback speed">1x</button>
+                      </div>
+                    </div>
+                    <audio preload="metadata" src="${url}"></audio>
+                  </div>`;
         }else{
           const icon = kind==="pdf"?"📄":kind==="contact"?"👤":"📎";
           inner+=`<a class="doc" href="${url}" target="_blank" download="${escapeHtml(name)}">
@@ -449,6 +495,7 @@ function renderMessages(filter){
 
   $("#countbar").textContent = q ? `${shown} message(s) matching “${filter}”` : `${shown} messages`;
   if(!q) chat.scrollTop = chat.scrollHeight;
+  observeWaves();
 }
 
 function linkify(s){
@@ -493,6 +540,140 @@ dz.addEventListener("drop",async e=>{
     ingestFiles([...e.dataTransfer.files]);
   }
 });
+// ---------- zoom ----------
+let zoom=1;
+function applyZoom(){
+  document.documentElement.style.setProperty("--z",zoom.toFixed(2));
+  $("#zoomLbl").textContent=Math.round(zoom*100)+"%";
+}
+$("#zoomIn").onclick =()=>{ zoom=Math.min(2.2,zoom+0.1); applyZoom(); };
+$("#zoomOut").onclick=()=>{ zoom=Math.max(0.6,zoom-0.1); applyZoom(); };
+$("#zoomLbl").onclick =()=>{ zoom=1; applyZoom(); };
+
+// ---------- custom audio players (event delegation) ----------
+const NBARS=42;
+const fmtT = s => { if(!isFinite(s))return"0:00"; s=Math.floor(s); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); };
+const RATES=[1,1.5,2,0.75];
+
+// ---- waveform decoding (lazy, when scrolled into view) ----
+let audioCtx=null;
+function getCtx(){ if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); return audioCtx; }
+let decodeQueue=[], decoding=0;
+function enqueueWave(box){
+  if(box.dataset.wave) return;            // already queued/done
+  box.dataset.wave="queued";
+  decodeQueue.push(box);
+  pumpQueue();
+}
+function pumpQueue(){
+  while(decoding<2 && decodeQueue.length){
+    const box=decodeQueue.shift();
+    decoding++;
+    decodeWave(box).finally(()=>{ decoding--; pumpQueue(); });
+  }
+}
+async function decodeWave(box){
+  const a=box.querySelector("audio");
+  try{
+    const buf=await fetch(a.src).then(r=>r.arrayBuffer());
+    const audio=await getCtx().decodeAudioData(buf);
+    const data=audio.getChannelData(0);
+    const block=Math.floor(data.length/NBARS);
+    const peaks=[];
+    let max=0;
+    for(let i=0;i<NBARS;i++){
+      let sum=0;
+      const start=i*block;
+      for(let j=0;j<block;j+=64){ const v=Math.abs(data[start+j]||0); if(v>sum)sum=v; }
+      peaks.push(sum); if(sum>max)max=sum;
+    }
+    const bars=box.querySelectorAll(".aud-bar");
+    bars.forEach((b,i)=>{
+      const h=max?Math.max(8,Math.round((peaks[i]/max)*100)):20;
+      b.style.height=h+"%";
+    });
+    box.dataset.wave="done";
+  }catch(err){
+    // decoding not supported for this format/browser: leave neutral bars
+    box.dataset.wave="failed";
+  }
+}
+const waveObserver=new IntersectionObserver(entries=>{
+  for(const en of entries){
+    if(en.isIntersecting){ enqueueWave(en.target); waveObserver.unobserve(en.target); }
+  }
+},{root:document.getElementById("chat"),rootMargin:"200px"});
+function observeWaves(){
+  document.querySelectorAll(".aud:not([data-wave])").forEach(b=>waveObserver.observe(b));
+}
+
+document.addEventListener("click",e=>{
+  const playBtn=e.target.closest(".aud-play");
+  if(playBtn){
+    const a=playBtn.closest(".aud").querySelector("audio");
+    if(a.paused){
+      // pause any other playing audio
+      document.querySelectorAll(".aud audio").forEach(o=>{ if(o!==a&&!o.paused){o.pause();} });
+      a.play();
+    } else a.pause();
+    return;
+  }
+  const rateBtn=e.target.closest(".aud-rate");
+  if(rateBtn){
+    const a=rateBtn.closest(".aud").querySelector("audio");
+    let i=RATES.indexOf(a.playbackRate); i=(i+1)%RATES.length;
+    a.playbackRate=RATES[i]; rateBtn.textContent=RATES[i]+"x";
+    return;
+  }
+});
+
+// click / drag on waveform to seek
+function waveSeek(box,clientX){
+  const a=box.querySelector("audio"), wave=box.querySelector(".aud-wave");
+  const r=wave.getBoundingClientRect();
+  const ratio=Math.min(1,Math.max(0,(clientX-r.left)/r.width));
+  if(a.duration) a.currentTime=ratio*a.duration;
+  paintBars(box,ratio);
+}
+document.addEventListener("pointerdown",e=>{
+  const wave=e.target.closest(".aud-wave");
+  if(!wave)return;
+  const box=wave.closest(".aud");
+  waveSeek(box,e.clientX);
+  const move=ev=>waveSeek(box,ev.clientX);
+  const up=()=>{document.removeEventListener("pointermove",move);document.removeEventListener("pointerup",up);};
+  document.addEventListener("pointermove",move);
+  document.addEventListener("pointerup",up);
+});
+
+function paintBars(box,ratio){
+  const bars=box.querySelectorAll(".aud-bar");
+  const upto=Math.round(ratio*bars.length);
+  bars.forEach((b,i)=>b.classList.toggle("played",i<upto));
+}
+
+// audio events (capture so they catch dynamically added <audio>)
+document.addEventListener("loadedmetadata",e=>{
+  const a=e.target; if(a.tagName!=="AUDIO"||!a.closest(".aud"))return;
+  a.closest(".aud").querySelector(".aud-time").textContent=fmtT(a.duration);
+},true);
+document.addEventListener("timeupdate",e=>{
+  const a=e.target; const box=a.closest&&a.closest(".aud"); if(!box)return;
+  const t=box.querySelector(".aud-time");
+  if(a.duration) paintBars(box,a.currentTime/a.duration);
+  t.textContent=fmtT(a.duration?a.duration-a.currentTime:0);
+},true);
+document.addEventListener("play",e=>{
+  const box=e.target.closest&&e.target.closest(".aud"); if(box)box.querySelector(".aud-play").textContent="⏸";
+},true);
+document.addEventListener("pause",e=>{
+  const box=e.target.closest&&e.target.closest(".aud"); if(box)box.querySelector(".aud-play").textContent="▶";
+},true);
+document.addEventListener("ended",e=>{
+  const box=e.target.closest&&e.target.closest(".aud");
+  if(box){ box.querySelector(".aud-play").textContent="▶"; box.querySelector(".aud-seek").value=0; }
+},true);
+
 function walkEntry(entry,out){
   return new Promise(res=>{
     if(entry.isFile){
