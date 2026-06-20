@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WhatsApp Chat Viewer</title>
+<style>
+  :root{
+    --wa-green:#008069;
+    --wa-bg:#efeae2;
+    --bubble-in:#ffffff;
+    --bubble-out:#d9fdd3;
+    --panel:#f0f2f5;
+    --text:#111b21;
+    --muted:#667781;
+    --tick:#53bdeb;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:#d1d7db;
+    color:var(--text);
+    display:flex;
+    flex-direction:column;
+    height:100vh;
+    overflow:hidden;
+  }
+
+  /* ---------- Drop / upload landing ---------- */
+  #landing{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:20px;
+    padding:24px;
+    text-align:center;
+  }
+  #landing h1{color:var(--wa-green);margin:0;font-size:26px}
+  #landing p{color:var(--muted);margin:0;max-width:520px;line-height:1.5}
+  .dropzone{
+    border:3px dashed #9aa6ad;
+    border-radius:16px;
+    padding:48px 56px;
+    background:#fff;
+    transition:.15s;
+    cursor:pointer;
+    max-width:560px;
+  }
+  .dropzone.drag{border-color:var(--wa-green);background:#eafff4;transform:scale(1.01)}
+  .dropzone .icon{font-size:48px}
+  .btn{
+    background:var(--wa-green);color:#fff;border:none;border-radius:24px;
+    padding:11px 24px;font-size:15px;cursor:pointer;font-weight:600;
+  }
+  .btn:hover{filter:brightness(1.08)}
+  .hint{font-size:13px;color:var(--muted)}
+
+  /* ---------- App layout ---------- */
+  #app{display:none;flex-direction:column;height:100%;width:100%;}
+  header.topbar{
+    background:var(--panel);
+    display:flex;align-items:center;gap:12px;
+    padding:9px 16px;border-bottom:1px solid #d1d7db;flex-shrink:0;
+  }
+  .avatar{
+    width:40px;height:40px;border-radius:50%;background:var(--wa-green);
+    color:#fff;display:flex;align-items:center;justify-content:center;
+    font-weight:600;font-size:16px;flex-shrink:0;
+  }
+  .topbar .meta{flex:1;min-width:0}
+  .topbar .meta .name{font-weight:600;font-size:16px}
+  .topbar .meta .sub{font-size:12.5px;color:var(--muted)}
+  .topbar .tools{display:flex;align-items:center;gap:10px}
+  .topbar select,.topbar input[type=search]{
+    border:1px solid #d1d7db;border-radius:8px;padding:6px 10px;font-size:13px;background:#fff;
+  }
+  .topbar .linkbtn{background:none;border:none;color:var(--wa-green);cursor:pointer;font-size:13px;font-weight:600}
+
+  /* ---------- Chat area ---------- */
+  #chat{
+    flex:1;overflow-y:auto;padding:18px 8% 24px;
+    background-color:var(--wa-bg);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Cg fill='%23000000' fill-opacity='0.025'%3E%3Cpath d='M0 0h20v20H0zM20 20h20v20H20z'/%3E%3C/g%3E%3C/svg%3E");
+  }
+  .daysep{display:flex;justify-content:center;margin:14px 0}
+  .daysep span{
+    background:#ffffffcc;color:#54656f;font-size:12.5px;padding:5px 12px;
+    border-radius:8px;box-shadow:0 1px 1px rgba(0,0,0,.06);text-transform:uppercase;letter-spacing:.3px;
+  }
+  .sysmsg{display:flex;justify-content:center;margin:8px 0}
+  .sysmsg span{
+    background:#fff5d6;color:#54656f;font-size:12.5px;padding:5px 12px;
+    border-radius:8px;box-shadow:0 1px 1px rgba(0,0,0,.06);text-align:center;max-width:80%;
+  }
+
+  .row{display:flex;margin:2px 0;}
+  .row.out{justify-content:flex-end}
+  .row.in{justify-content:flex-start}
+  .bubble{
+    position:relative;max-width:65%;border-radius:8px;padding:6px 9px 8px;
+    box-shadow:0 1px .5px rgba(0,0,0,.13);font-size:14.2px;line-height:1.35;
+    word-wrap:break-word;overflow-wrap:anywhere;white-space:pre-wrap;
+  }
+  .row.in  .bubble{background:var(--bubble-in);border-top-left-radius:0}
+  .row.out .bubble{background:var(--bubble-out);border-top-right-radius:0}
+  .bubble .sender{font-size:12.8px;font-weight:600;margin-bottom:2px;color:#e542a3}
+  .bubble.sticker-only{background:transparent!important;box-shadow:none;padding:0}
+  .bubble .time{
+    font-size:11px;color:var(--muted);float:right;margin:6px 0 -2px 8px;user-select:none;white-space:nowrap;
+  }
+  .bubble .edited{font-size:11px;color:var(--muted);font-style:italic}
+  .bubble .body{display:inline}
+  .bubble.highlight{outline:3px solid #ffd54a;outline-offset:1px}
+
+  /* media */
+  .bubble img.photo,.bubble video{
+    max-width:330px;width:100%;border-radius:6px;display:block;margin-bottom:4px;cursor:pointer;background:#0001;
+  }
+  .bubble img.sticker{width:130px;height:auto;display:block}
+  .bubble audio{width:280px;max-width:60vw;margin:2px 0;display:block}
+  .doc{
+    display:flex;align-items:center;gap:10px;background:#0000000a;border-radius:8px;
+    padding:10px 12px;margin-bottom:4px;text-decoration:none;color:inherit;min-width:200px;
+  }
+  .doc .dicon{font-size:26px}
+  .doc .dinfo{min-width:0}
+  .doc .dname{font-weight:600;font-size:13.5px;word-break:break-all}
+  .doc .dtype{font-size:11.5px;color:var(--muted)}
+  .missing{font-style:italic;color:var(--muted);font-size:13px}
+
+  /* lightbox */
+  #lightbox{
+    display:none;position:fixed;inset:0;background:#000000ee;z-index:50;
+    align-items:center;justify-content:center;flex-direction:column;
+  }
+  #lightbox.open{display:flex}
+  #lightbox img,#lightbox video{max-width:92vw;max-height:88vh;border-radius:6px}
+  #lightbox .close{position:absolute;top:18px;right:24px;color:#fff;font-size:34px;cursor:pointer;line-height:1}
+  .countbar{font-size:12.5px;color:var(--muted);padding:4px 0;text-align:center}
+</style>
+</head>
+<body>
+
+<!-- Landing -->
+<div id="landing">
+  <h1>💬 WhatsApp Chat Viewer</h1>
+  <p>Select a WhatsApp-exported folder (the one that contains <code>_chat.txt</code> plus its photos, audio, stickers and documents). Everything is read locally in your browser — nothing is uploaded anywhere.</p>
+  <div class="dropzone" id="dropzone">
+    <div class="icon">📁</div>
+    <p style="margin:14px 0 18px;color:var(--text);font-weight:600">Drag &amp; drop the chat folder here</p>
+    <button class="btn" id="pickBtn">Choose folder…</button>
+    <input type="file" id="folderInput" webkitdirectory directory multiple hidden>
+  </div>
+  <div class="hint">Works fully offline. Supports photos, videos, voice notes, stickers, GIFs, PDFs and contacts.</div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <header class="topbar">
+    <div class="avatar" id="hdrAvatar">?</div>
+    <div class="meta">
+      <div class="name" id="hdrName">Chat</div>
+      <div class="sub" id="hdrSub"></div>
+    </div>
+    <div class="tools">
+      <input type="search" id="search" placeholder="🔍 Search messages">
+      <label class="hint">You:&nbsp;</label>
+      <select id="meSelect" title="Who is 'you' (right side)"></select>
+      <button class="linkbtn" id="resetBtn">Open another</button>
+    </div>
+  </header>
+  <div class="countbar" id="countbar"></div>
+  <div id="chat"></div>
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox"><span class="close" id="lbClose">&times;</span><div id="lbContent"></div></div>
+
+<script>
+"use strict";
+
+// ---------- helpers ----------
+const $ = s => document.querySelector(s);
+const stripMarks = s => (s||"").replace(/[‎‏‪-‮⁦-⁩﻿]/g,"");
+const basename = p => p.split(/[\\/]/).pop();
+const escapeHtml = s => s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+// file maps
+let fileMap = {};        // basename -> File
+let urlCache = {};       // basename -> objectURL (lazy)
+function urlFor(name){
+  if(!fileMap[name]) return null;
+  if(!urlCache[name]) urlCache[name]=URL.createObjectURL(fileMap[name]);
+  return urlCache[name];
+}
+
+let parsed = [];   // message objects
+let participants = [];
+let meName = null;
+
+// ---------- folder ingestion ----------
+function ingestFiles(files){
+  fileMap={}; urlCache={};
+  let chatFile=null;
+  for(const f of files){
+    const bn = basename(f.name);
+    fileMap[bn]=f;
+    if(bn.toLowerCase()==="_chat.txt") chatFile=f;
+  }
+  if(!chatFile){
+    // try any .txt as fallback
+    const txt = files.find(f=>/\.txt$/i.test(f.name));
+    if(txt) chatFile=txt;
+  }
+  if(!chatFile){ alert("No _chat.txt found in that folder. Make sure you selected a WhatsApp export folder."); return; }
+  const reader=new FileReader();
+  reader.onload=e=>{ buildChat(e.target.result, chatFile); };
+  reader.readAsText(chatFile,"utf-8");
+}
+
+// ---------- parser ----------
+const START_RE = /^\[(\d{1,2})\/(\d{1,2})\/(\d{2,4}),?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([APap]\.?\s?[Mm]\.?)?\]\s*(.*)$/;
+
+function parseChat(text){
+  const lines = text.split(/\r?\n/);
+  const msgs=[];
+  let cur=null;
+  for(let raw of lines){
+    const line = stripMarks(raw);
+    const m = line.match(START_RE);
+    if(m){
+      if(cur) msgs.push(cur);
+      let [,d,mo,y,hh,mm,ss,ampm,rest]=m;
+      y=y.length===2?("20"+y):y;
+      let hour=parseInt(hh,10);
+      if(ampm){
+        const pm=/p/i.test(ampm);
+        if(pm&&hour<12)hour+=12;
+        if(!pm&&hour===12)hour=0;
+      }
+      const date=new Date(+y,+mo-1,+d,hour,+mm,ss?+ss:0);
+      // split sender: body
+      let sender=null, body=rest;
+      const sm = rest.match(/^([^:]{1,60}?):\s([\s\S]*)$/);
+      if(sm){ sender=sm[1].trim(); body=sm[2]; }
+      cur={date,d:+d,mo:+mo,y:+y,hh:String(hour).padStart(2,"0"),mm,sender,body,raw:rest};
+    } else if(cur){
+      cur.body += "\n"+line;
+    }
+  }
+  if(cur) msgs.push(cur);
+  return msgs;
+}
+
+// classify a message
+function classify(msg){
+  let body = msg.body;
+  let edited=false;
+  // edited markers (multi-language)
+  body = body.replace(/<(?:Se editó este mensaje\.?|This message was edited|Has editado este mensaje)>/gi,()=>{edited=true;return"";}).trim();
+
+  // attachment? forms: <adjunto: file> / <attached: file> / "file (file attached)"
+  let attach=null;
+  let am = body.match(/^<[^:>]*:\s*([^>]+)>$/);
+  if(am) attach=am[1].trim();
+  if(!attach){
+    const am2 = body.match(/^([^\n]+?)\s*\((?:file attached|archivo adjunto|fichero adjunto)\)$/i);
+    if(am2) attach=am2[1].trim();
+  }
+
+  // system / no-sender style content
+  const isSystem = !msg.sender ||
+    /Los mensajes y las llamadas están cifrad|Messages and calls are end-to-end encrypted/i.test(body) ||
+    /^(‎)?(Llamada|Videollamada|Voice call|Video call|Missed voice call|Missed video call|Llamada perdida)\b/i.test(body);
+
+  const mediaOmitted = /^<(?:Multimedia omitido|Media omitted|imagen omitida|audio omitido|video omitido)>$/i.test(body);
+
+  return {...msg, body, edited, attach, isSystem, mediaOmitted};
+}
+
+// media kind from filename
+function mediaKind(name){
+  const ext=(name.split(".").pop()||"").toLowerCase();
+  const up=name.toUpperCase();
+  if(up.includes("STICKER")) return "sticker";
+  if(["jpg","jpeg","png","gif","webp"].includes(ext)){
+    return (ext==="webp") ? "sticker" : (ext==="gif"?"image":"image");
+  }
+  if(["mp4","mov","m4v","3gp","webm"].includes(ext)) return "video";
+  if(["opus","mp3","ogg","m4a","aac","wav"].includes(ext)) return "audio";
+  if(ext==="pdf") return "pdf";
+  if(ext==="vcf") return "contact";
+  return "file";
+}
+
+// ---------- rendering ----------
+function buildChat(text){
+  parsed = parseChat(text).map(classify);
+  participants = [...new Set(parsed.filter(m=>m.sender).map(m=>m.sender))];
+
+  // guess "me": prefer a sender whose name isn't in the folder title; else last participant
+  meName = guessMe();
+
+  // header
+  const other = participants.find(p=>p!==meName) || participants[0] || "Chat";
+  $("#hdrName").textContent = other;
+  $("#hdrAvatar").textContent = (other[0]||"?").toUpperCase();
+  $("#hdrSub").textContent = participants.join(", ");
+
+  // me selector
+  const sel=$("#meSelect");
+  sel.innerHTML = participants.map(p=>`<option ${p===meName?"selected":""}>${escapeHtml(p)}</option>`).join("");
+  sel.onchange = ()=>{ meName=sel.value; renderMessages(); };
+
+  $("#landing").style.display="none";
+  $("#app").style.display="flex";
+  renderMessages();
+}
+
+function guessMe(){
+  if(participants.length<=1) return participants[0]||null;
+  // try to read folder title from any file path
+  let title="";
+  for(const k in fileMap){ const wp=fileMap[k].webkitRelativePath; if(wp){title=wp.split(/[\\/]/)[0];break;} }
+  title=title.toLowerCase();
+  const notInTitle = participants.filter(p=>!title.includes(p.toLowerCase().split(" ")[0]));
+  if(notInTitle.length===1) return notInTitle[0];
+  return participants[participants.length-1];
+}
+
+function renderMessages(filter){
+  const chat=$("#chat");
+  chat.innerHTML="";
+  let lastDay="";
+  let shown=0;
+  const q=(filter||"").toLowerCase().trim();
+
+  for(const m of parsed){
+    if(q && !( (m.body||"").toLowerCase().includes(q) || (m.sender||"").toLowerCase().includes(q) )) continue;
+    shown++;
+
+    const dayKey = m.date.toDateString();
+    if(dayKey!==lastDay){
+      lastDay=dayKey;
+      const sep=document.createElement("div");
+      sep.className="daysep";
+      sep.innerHTML=`<span>${m.date.getDate()} ${MONTHS[m.date.getMonth()]} ${m.date.getFullYear()}</span>`;
+      chat.appendChild(sep);
+    }
+
+    if(m.isSystem){
+      const s=document.createElement("div");
+      s.className="sysmsg";
+      s.innerHTML=`<span>${escapeHtml(m.body||"")}</span>`;
+      chat.appendChild(s);
+      continue;
+    }
+
+    const out = m.sender===meName;
+    const row=document.createElement("div");
+    row.className="row "+(out?"out":"in");
+
+    const bub=document.createElement("div");
+    bub.className="bubble";
+
+    let inner="";
+    const showSender = !out && participants.length>2; // show name only in groups
+    if(showSender) inner+=`<div class="sender">${escapeHtml(m.sender)}</div>`;
+
+    let isStickerOnly=false;
+
+    if(m.attach){
+      const name=m.attach;
+      const url=urlFor(name);
+      if(!url){
+        inner+=`<div class="missing">📎 ${escapeHtml(name)} (file not found in folder)</div>`;
+      }else{
+        const kind=mediaKind(name);
+        if(kind==="image"){
+          inner+=`<img class="photo" src="${url}" loading="lazy" data-lb="img" data-src="${url}">`;
+        }else if(kind==="sticker"){
+          inner+=`<img class="sticker" src="${url}" loading="lazy">`;
+          isStickerOnly = true;
+        }else if(kind==="video"){
+          inner+=`<video src="${url}" controls preload="metadata" data-lb="video" data-src="${url}"></video>`;
+        }else if(kind==="audio"){
+          inner+=`<audio controls preload="none" src="${url}"></audio>`;
+        }else{
+          const icon = kind==="pdf"?"📄":kind==="contact"?"👤":"📎";
+          inner+=`<a class="doc" href="${url}" target="_blank" download="${escapeHtml(name)}">
+                    <span class="dicon">${icon}</span>
+                    <span class="dinfo"><span class="dname">${escapeHtml(name)}</span>
+                    <span class="dtype">${kind==="contact"?"Contact card":kind.toUpperCase()+" document"}</span></span>
+                  </a>`;
+        }
+      }
+    } else if(m.mediaOmitted){
+      inner+=`<div class="missing">🚫 media omitted from export</div>`;
+    }
+
+    // text body (only if not a pure attachment line)
+    const textPart = m.attach ? "" : m.body;
+    if(textPart && textPart.trim()){
+      inner+=`<span class="body">${linkify(escapeHtml(textPart))}</span>`;
+    }
+    if(isStickerOnly && (!textPart||!textPart.trim())) bub.classList.add("sticker-only");
+
+    const editedTag = m.edited?` <span class="edited">edited</span>`:"";
+    if(!bub.classList.contains("sticker-only"))
+      inner+=`<span class="time">${m.hh}:${m.mm}${editedTag}</span>`;
+
+    bub.innerHTML=inner;
+    row.appendChild(bub);
+    chat.appendChild(row);
+  }
+
+  $("#countbar").textContent = q ? `${shown} message(s) matching “${filter}”` : `${shown} messages`;
+  if(!q) chat.scrollTop = chat.scrollHeight;
+}
+
+function linkify(s){
+  return s.replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank" rel="noopener" style="color:#027eb5">$1</a>');
+}
+
+// ---------- lightbox ----------
+const lb=$("#lightbox"), lbc=$("#lbContent");
+document.addEventListener("click",e=>{
+  const t=e.target;
+  if(t.dataset && t.dataset.lb){
+    lbc.innerHTML = t.dataset.lb==="img"
+      ? `<img src="${t.dataset.src}">`
+      : `<video src="${t.dataset.src}" controls autoplay></video>`;
+    lb.classList.add("open");
+  }
+});
+$("#lbClose").onclick=()=>{lb.classList.remove("open");lbc.innerHTML="";};
+lb.addEventListener("click",e=>{if(e.target===lb){lb.classList.remove("open");lbc.innerHTML="";}});
+
+// ---------- wiring ----------
+$("#pickBtn").onclick=()=>$("#folderInput").click();
+$("#folderInput").onchange=e=>ingestFiles([...e.target.files]);
+$("#resetBtn").onclick=()=>{ $("#app").style.display="none"; $("#landing").style.display="flex"; parsed=[]; };
+
+let searchTimer;
+$("#search").oninput=e=>{ clearTimeout(searchTimer); const v=e.target.value; searchTimer=setTimeout(()=>renderMessages(v),180); };
+
+// drag & drop (folder)
+const dz=$("#dropzone");
+["dragenter","dragover"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add("drag");}));
+["dragleave","drop"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove("drag");}));
+dz.addEventListener("drop",async e=>{
+  e.preventDefault();
+  const items=[...e.dataTransfer.items];
+  const entries=items.map(i=>i.webkitGetAsEntry&&i.webkitGetAsEntry()).filter(Boolean);
+  if(entries.length){
+    const files=[];
+    for(const en of entries) await walkEntry(en,files);
+    ingestFiles(files);
+  }else{
+    ingestFiles([...e.dataTransfer.files]);
+  }
+});
+function walkEntry(entry,out){
+  return new Promise(res=>{
+    if(entry.isFile){
+      entry.file(f=>{ try{Object.defineProperty(f,"webkitRelativePath",{value:entry.fullPath.replace(/^\//,"")});}catch(_){}
+        out.push(f); res(); });
+    }else if(entry.isDirectory){
+      const rd=entry.createReader();
+      const all=[];
+      const read=()=>rd.readEntries(async ents=>{
+        if(!ents.length){ for(const c of all) await walkEntry(c,out); res(); }
+        else { all.push(...ents); read(); }
+      });
+      read();
+    }else res();
+  });
+}
+</script>
+</body>
+</html>
