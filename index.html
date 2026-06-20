@@ -178,15 +178,22 @@
     #landing h1{font-size:21px}
     .dropzone{padding:30px 20px;width:100%}
 
-    .topbar{padding:8px 10px;gap:8px;flex-wrap:wrap}
+    .topbar{padding:8px 10px;gap:8px 10px;flex-wrap:wrap}
     .avatar{width:36px;height:36px;font-size:15px}
     .topbar .meta .name{font-size:15px}
-    /* search + controls drop to a second full-width row */
+    /* tools drop to their own full-width area below name */
     .topbar .tools{
-      order:3;flex-basis:100%;width:100%;gap:8px;flex-wrap:wrap;
+      order:3;flex-basis:100%;width:100%;gap:8px;flex-wrap:wrap;align-items:center;
     }
-    .topbar input[type=search]{flex:1;min-width:0}
+    /* search: its own full-width row */
+    .topbar .tools #search{order:-1;flex-basis:100%;width:100%;font-size:15px;padding:9px 12px}
     .topbar .tools label.hint{display:none}
+    /* keep zoom + select + reset on one shared row, evenly spread */
+    .zoomctl{flex:0 0 auto}
+    .zbtn{width:34px;height:34px;font-size:19px}
+    #zoomLbl{min-width:44px}
+    .topbar #meSelect{flex:1;min-width:0;max-width:48%;padding:8px 10px}
+    .topbar .linkbtn{margin-left:auto;padding:6px 4px}
 
     #chat{padding:12px 10px 18px}
     .bubble{max-width:85%;font-size:15px;padding:6px 8px 8px}
