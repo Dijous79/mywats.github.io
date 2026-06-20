@@ -63,9 +63,29 @@
   #app{display:none;flex-direction:column;height:100%;width:100%;}
   header.topbar{
     background:var(--panel);
-    display:flex;align-items:center;gap:12px;
+    display:flex;align-items:center;gap:12px;position:relative;
     padding:9px 16px;border-bottom:1px solid #d1d7db;flex-shrink:0;
   }
+  .menubtn{
+    flex-shrink:0;background:none;border:none;cursor:pointer;color:#54656f;
+    width:40px;height:40px;border-radius:50%;font-size:22px;line-height:1;
+  }
+  .menubtn:hover{background:#0000000d}
+  .menu{
+    position:absolute;top:56px;right:12px;z-index:30;background:#fff;
+    border-radius:10px;box-shadow:0 6px 22px rgba(0,0,0,.22);
+    padding:8px;min-width:250px;display:flex;flex-direction:column;gap:6px;
+  }
+  .menu[hidden]{display:none}
+  .menu-row{display:flex;align-items:center;gap:8px}
+  .menu-row #search,.menu-row #meSelect{width:100%}
+  .menu-label{
+    font-size:11px;color:var(--muted);font-weight:700;margin-top:4px;
+    text-transform:uppercase;letter-spacing:.4px;
+  }
+  .menu .zoomctl{justify-content:center;gap:16px}
+  .menu .linkbtn{width:100%;text-align:left;padding:9px 6px;font-size:14px;border-radius:6px}
+  .menu .linkbtn:hover{background:#0000000d}
   .avatar{
     width:40px;height:40px;border-radius:50%;background:var(--wa-green);
     color:#fff;display:flex;align-items:center;justify-content:center;
@@ -181,22 +201,13 @@
     #landing h1{font-size:21px}
     .dropzone{padding:30px 20px;width:100%}
 
-    .topbar{padding:8px 10px;gap:8px 10px;flex-wrap:wrap}
+    .topbar{padding:8px 10px;gap:8px}
     .avatar{width:36px;height:36px;font-size:15px}
     .topbar .meta .name{font-size:15px}
-    /* tools drop to their own full-width area below name */
-    .topbar .tools{
-      order:3;flex-basis:100%;width:100%;gap:8px;flex-wrap:wrap;align-items:center;
-    }
-    /* search: its own full-width row */
-    .topbar .tools #search{order:-1;flex-basis:100%;width:100%;font-size:15px;padding:9px 12px}
-    .topbar .tools label.hint{display:none}
-    /* keep zoom + select + reset on one shared row, evenly spread */
-    .zoomctl{flex:0 0 auto}
-    .zbtn{width:34px;height:34px;font-size:19px}
-    #zoomLbl{min-width:44px}
-    .topbar #meSelect{flex:1;min-width:0;max-width:48%;padding:8px 10px}
-    .topbar .linkbtn{margin-left:auto;padding:6px 4px}
+    /* dropdown menu spans most of the width on phones */
+    .menu{left:10px;right:10px;min-width:0;top:52px}
+    .menu-row #search{font-size:16px;padding:10px 12px}
+    .zbtn{width:38px;height:38px;font-size:20px}
 
     #chat{padding:12px 10px 18px}
     .bubble{max-width:85%;font-size:15px;padding:6px 8px 8px}
@@ -234,16 +245,25 @@
       <div class="name" id="hdrName">Chat</div>
       <div class="sub" id="hdrSub"></div>
     </div>
-    <div class="tools">
-      <input type="search" id="search" placeholder="🔍 Search messages">
-      <div class="zoomctl">
+    <button class="menubtn" id="menuBtn" title="Options" aria-label="Options">⋮</button>
+
+    <div class="menu" id="menu" hidden>
+      <div class="menu-row">
+        <input type="search" id="search" placeholder="🔍 Search messages">
+      </div>
+      <div class="menu-label">Zoom</div>
+      <div class="menu-row zoomctl">
         <button class="zbtn" id="zoomOut" title="Zoom out (more messages)">−</button>
         <span id="zoomLbl" title="Reset zoom">100%</span>
         <button class="zbtn" id="zoomIn" title="Zoom in (bigger messages)">+</button>
       </div>
-      <label class="hint">You:&nbsp;</label>
-      <select id="meSelect" title="Who is 'you' (right side)"></select>
-      <button class="linkbtn" id="resetBtn">Open another</button>
+      <div class="menu-label">You (right side)</div>
+      <div class="menu-row">
+        <select id="meSelect" title="Who is 'you' (right side)"></select>
+      </div>
+      <div class="menu-row">
+        <button class="linkbtn" id="resetBtn">📂 Open another chat</button>
+      </div>
     </div>
   </header>
   <div class="countbar" id="countbar"></div>
@@ -533,7 +553,15 @@ lb.addEventListener("click",e=>{if(e.target===lb){lb.classList.remove("open");lb
 // ---------- wiring ----------
 $("#pickBtn").onclick=()=>$("#folderInput").click();
 $("#folderInput").onchange=e=>ingestFiles([...e.target.files]);
-$("#resetBtn").onclick=()=>{ $("#app").style.display="none"; $("#landing").style.display="flex"; parsed=[]; };
+$("#resetBtn").onclick=()=>{ $("#menu").hidden=true; $("#app").style.display="none"; $("#landing").style.display="flex"; parsed=[]; };
+
+// ⋮ options menu
+const menuEl=$("#menu"), menuBtn=$("#menuBtn");
+menuBtn.onclick=e=>{ e.stopPropagation(); menuEl.hidden=!menuEl.hidden; };
+document.addEventListener("click",e=>{
+  if(!menuEl.hidden && !menuEl.contains(e.target) && e.target!==menuBtn) menuEl.hidden=true;
+});
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") menuEl.hidden=true; });
 
 let searchTimer;
 $("#search").oninput=e=>{ clearTimeout(searchTimer); const v=e.target.value; searchTimer=setTimeout(()=>renderMessages(v),180); };
